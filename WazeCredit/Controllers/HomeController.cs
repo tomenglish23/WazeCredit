@@ -10,12 +10,13 @@ using WazeCredit.Models;
 using WazeCredit.Utility.AppSettingsClasses;
 using WazeCredit.Models.ViewModels;
 using WazeCredit.Service;
+using WazeCredit.Data;
 
 namespace WazeCredit.Controllers
 {
     public class HomeController : Controller
     {
-        //private readonly ILogger<HomeController> _logger;
+        private readonly ILogger<HomeController> _logger;
 
         //public HomeController(ILogger<HomeController> logger)
         //{
@@ -28,17 +29,29 @@ namespace WazeCredit.Controllers
         //private readonly SendGridSettings _sendGridOptions;
         //private readonly TwilioSettings _twillioOptions;
         private readonly WazeForecastSettings _wazeOptions;
+        private readonly ICreditValidator _creditValidator;
+        private readonly ApplicationDbContext _db;
+
+        [BindProperty]
+        public CreditApplication CreditModel { get; set; }
 
         public HomeController(IMarketForcaster marketForcaster,
-                              IOptions<WazeForecastSettings> wazeOptions)    // kvp
+                              IOptions<WazeForecastSettings> wazeOptions,   // kvp
+                              ICreditValidator creditValidator,
+                              ApplicationDbContext db,
+                              ILogger<HomeController> logger)
         {
             homeVM = new HomeVM();
             _marketForcaster = marketForcaster;
             _wazeOptions = wazeOptions.Value;
+            _creditValidator = creditValidator;
+            _db = db;
+            _logger = logger;
         }
 
         public IActionResult Index()
         {
+            _logger.LogInformation("Home Conteoller Index Action Called");
             MarketResult currentMarket = _marketForcaster.GetMarketPrediction();
 
             switch (currentMarket.MarketCondition)
@@ -56,6 +69,7 @@ namespace WazeCredit.Controllers
                     homeVM.MarketForecast = "Apply for a credit card using our application!";
                     break;
             }
+            _logger.LogInformation("Home Controller Index Action Ended");
             return View(homeVM);
         }
 
@@ -87,6 +101,60 @@ namespace WazeCredit.Controllers
             messages.Add($"Twilio SID: "             + twilioOptions.Value.AccountSid);
             messages.Add($"Twilio Token: "           + twilioOptions.Value.AuthToken);
             return View(messages);
+        }
+
+        public IActionResult CreditApplication()
+        {
+            CreditModel = new CreditApplication();
+            return View(CreditModel);
+        }
+
+        [ValidateAntiForgeryToken]
+        [HttpPost]
+        [ActionName("CreditApplication")]
+        public async Task<IActionResult> CreditApplicationPOST(
+            [FromServices] Func<CreditApprovedEnum, ICreditApproved> _creditService
+            )
+        {
+            if (ModelState.IsValid)
+            {
+                var (validationPassed, errorMessages) = await _creditValidator.PassAllValidations(CreditModel);
+
+                CreditResultVM creditResult = new CreditResultVM()
+                {
+                    ErrorList = errorMessages,
+                    CreditID = 0,
+                    Success = validationPassed
+                };
+                if (validationPassed)
+                {
+                    // Inject the  service in this Action:
+                    CreditModel.CreditApproved = _creditService(CreditModel.Salary > 50000 ?
+                                                                CreditApprovedEnum.High : CreditApprovedEnum.Low)
+                                                .GetCreditApproved(CreditModel);
+
+                    _db.CreditApplicationModel.Add(CreditModel);
+                    _db.SaveChanges();
+
+                    ////add record to database
+                    //_unitOfWork.CreditApplication.Add(CreditModel);
+                    //_unitOfWork.Save();
+                    creditResult.CreditID = CreditModel.Id;
+                    creditResult.CreditApproved = CreditModel.CreditApproved;
+                    return RedirectToAction(nameof(CreditResult), creditResult);
+                }
+                else
+                {
+                    return RedirectToAction(nameof(CreditResult), creditResult);
+                }
+
+            }
+            return View(CreditModel);
+        }
+
+        public IActionResult CreditResult(CreditResultVM creditResult)
+        {
+            return View(creditResult);
         }
 
         public IActionResult Privacy()
