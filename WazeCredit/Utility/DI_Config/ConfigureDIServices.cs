@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System;
+using WazeCredit.Data.Repository;
+using WazeCredit.Data.Repository.IRepository;
 using WazeCredit.Models;
 //using WazeCredit.Data.Repository;
 //using WazeCredit.Data.Repository.IRepository;
@@ -34,7 +36,7 @@ namespace WazeCredit.Utility.DI_Config
             services.AddScoped<ScopedService>();
             services.AddSingleton<SingletonService>();
 
-            //services.AddSingleton<IUnitOfWork, UnitOfWork>();
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             // CreditApproved
             services.AddScoped<CreditApprovedHigh>();

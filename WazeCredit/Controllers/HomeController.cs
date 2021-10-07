@@ -11,6 +11,7 @@ using WazeCredit.Utility.AppSettingsClasses;
 using WazeCredit.Models.ViewModels;
 using WazeCredit.Service;
 using WazeCredit.Data;
+using WazeCredit.Data.Repository.IRepository;
 
 namespace WazeCredit.Controllers
 {
@@ -30,7 +31,8 @@ namespace WazeCredit.Controllers
         //private readonly TwilioSettings _twillioOptions;
         private readonly WazeForecastSettings _wazeOptions;
         private readonly ICreditValidator _creditValidator;
-        private readonly ApplicationDbContext _db;
+        //private readonly ApplicationDbContext _db;
+        private readonly IUnitOfWork _unitOfWork;
 
         [BindProperty]
         public CreditApplication CreditModel { get; set; }
@@ -38,14 +40,16 @@ namespace WazeCredit.Controllers
         public HomeController(IMarketForcaster marketForcaster,
                               IOptions<WazeForecastSettings> wazeOptions,   // kvp
                               ICreditValidator creditValidator,
-                              ApplicationDbContext db,
+                              //ApplicationDbContext db,
+                              IUnitOfWork unitOfWork,
                               ILogger<HomeController> logger)
         {
             homeVM = new HomeVM();
             _marketForcaster = marketForcaster;
             _wazeOptions = wazeOptions.Value;
             _creditValidator = creditValidator;
-            _db = db;
+            //_db = db;
+            _unitOfWork = unitOfWork;
             _logger = logger;
         }
 
@@ -133,12 +137,13 @@ namespace WazeCredit.Controllers
                                                                 CreditApprovedEnum.High : CreditApprovedEnum.Low)
                                                 .GetCreditApproved(CreditModel);
 
-                    _db.CreditApplicationModel.Add(CreditModel);
-                    _db.SaveChanges();
 
                     ////add record to database
-                    //_unitOfWork.CreditApplication.Add(CreditModel);
-                    //_unitOfWork.Save();
+                    //_db.CreditApplicationModel.Add(CreditModel);
+                    //_db.SaveChanges();
+                    _unitOfWork.CreditApplication.Add(CreditModel);
+                    _unitOfWork.Save();
+
                     creditResult.CreditID = CreditModel.Id;
                     creditResult.CreditApproved = CreditModel.CreditApproved;
                     return RedirectToAction(nameof(CreditResult), creditResult);
